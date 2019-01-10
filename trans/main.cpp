@@ -3,11 +3,11 @@
 #include <unistd.h>
 #include <map>
 #include <string>
-#include "procTransFile.h"
+#include "file.h"
+#include "notiferLine.h"
 using namespace std;
 
 typedef int (*pFunc_t)(void*);
-
 
 int processDir(const char *pszDir, const char *pszPatter, int nHandleMaxFile, pFunc_t pFunc)
 {
@@ -42,22 +42,23 @@ int processDir(const char *pszDir, const char *pszPatter, int nHandleMaxFile, pF
   return 0;
 }
 
-
-
 int handleFile(const char *pszFile)
 {
-  CProcTransFile ptf;
-  int nRtn = ptf.open (pszFile);
+  CNotiferLine notiferLine;
+  CFile file;
+  int nRtn = file.open (pszFile);
+  printf ("file:%s,%d\n", pszFile, nRtn);
   if (0 == nRtn) {
     
   }
-
+  file.close ();
+  printf ("end!\n");
   return 0;
 }
 
 int main(int argc, char *argv[])
 {
-  map<string, string> mapBuf;
+  //map<string, string> mapBuf;
 
   processDir ("decoded", "*.txt", 256, (pFunc_t)handleFile);
 
@@ -76,6 +77,6 @@ int main(int argc, char *argv[])
     printf ("%s\t->%s\n", itMap->first.c_str (), itMap->second.c_str ());
   }
 #endif //0
-
+  printf ("exit");
   return 0;
 }

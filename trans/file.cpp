@@ -6,6 +6,7 @@ CFile::CFile()
 {
   this->m_fp = NULL;
   memset (this->m_szBuf, 0, BUF_LINE_MAX);
+  this->m_vecNotifer.clear ();
 }
 
 CFile::~CFile()
@@ -26,17 +27,21 @@ int CFile::open(const char *pszName)
   if (this->m_fp == NULL) {
     return -2;
   }
-
   return 0;
 }
 
-int CFile::getLine(callBack_handleLine_t pFunc)
+int CFile::getLine()
 {
   while (fgets (this->m_szBuf, BUF_LINE_MAX, this->m_fp)) {
-    pFunc (this->m_szBuf);
+    std::vector<CINotifer*>::iterator it;
+    int nSize = this->m_vecNotifer.size ();
+    //for (it=this->m_vecNotifer.begin (); it!=this->m_vecNotifer.end (); it++) {
+    for (int i = 0; i < nSize; i++) {
+      //it->notify (this->m_szBuf);
+      this->m_vecNotifer[i]->notify (this->m_szBuf);
+    }
     memset (this->m_szBuf, 0, BUF_LINE_MAX);
   }
-  
   return 0;
 }
 
@@ -46,5 +51,13 @@ int CFile::close()
     fclose (this->m_fp);
   }
   printf ("func:%s\n", __FUNCTION__);
+  return 0;
+}
+
+int CFile::addNotifer(CINotifer* pNotifer)
+{
+  if (pNotifer) {
+    this->m_vecNotifer.push_back (pNotifer);
+  }
   return 0;
 }
