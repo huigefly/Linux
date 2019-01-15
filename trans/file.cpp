@@ -12,9 +12,6 @@ CFile::CFile()
 CFile::~CFile()
 {
   this->close ();
-  if (this->m_fp) {
-    this->m_fp = NULL;
-  }
 }
 
 int CFile::open(const char *pszName)
@@ -49,8 +46,8 @@ int CFile::close()
 {
   if (this->m_fp) {
     fclose (this->m_fp);
+    this->m_fp = NULL;
   }
-  printf ("func:%s\n", __FUNCTION__);
   return 0;
 }
 

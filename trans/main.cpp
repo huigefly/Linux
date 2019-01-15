@@ -38,7 +38,6 @@ int processDir(const char *pszDir, const char *pszPatter, int nHandleMaxFile, pF
     default:
       break;
   }
-
   return 0;
 }
 
@@ -46,13 +45,13 @@ int handleFile(const char *pszFile)
 {
   CNotiferLine notiferLine;
   CFile file;
+  printf ("handle file:%s\n", pszFile);
   int nRtn = file.open (pszFile);
-  printf ("file:%s,%d\n", pszFile, nRtn);
   if (0 == nRtn) {
-    
+    file.addNotifer (&notiferLine);
+    file.getLine ();
   }
   file.close ();
-  printf ("end!\n");
   return 0;
 }
 
@@ -77,6 +76,5 @@ int main(int argc, char *argv[])
     printf ("%s\t->%s\n", itMap->first.c_str (), itMap->second.c_str ());
   }
 #endif //0
-  printf ("exit");
   return 0;
 }
