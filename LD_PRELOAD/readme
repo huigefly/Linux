@@ -1,0 +1,4 @@
+see LD_PRELOAD HOW TO USE
+
+so:
+  gcc hack.c -fPIC -shared -o hack.so
