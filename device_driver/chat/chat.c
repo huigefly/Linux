@@ -101,7 +101,7 @@ static ssize_t chat_read(struct file *filp, char *buf, size_t len, loff_t *off)
 	if (copy_to_user (buf, g_buf, len)) {
 		return -1;
 	}
-	return 0;
+	return len;
 }
 
 static ssize_t chat_write(struct file *filp, const char *buf, size_t len, loff_t *off)
