@@ -5,6 +5,8 @@
 #include <linux/uaccess.h>
 #include <linux/proc_fs.h>
 #include <linux/semaphore.h>
+#include <linux/sched.h>
+#include <linux/wait.h>
 
 int g_major = 0;
 int g_minor = 0;
@@ -14,6 +16,8 @@ static struct cdev g_chatDev[10];
 static char *g_buf;
 const int g_num_buf = 4*1024;
 struct semaphore *g_bufLocks;
+wait_queue_head_t *g_inQueue;
+int g_flag = 0;
 
 static ssize_t chat_read(struct file *, char *, size_t, loff_t *);
 static ssize_t chat_write(struct file *, const char *, size_t, loff_t *);
@@ -65,8 +69,24 @@ static int chat_init(void)
 		return nRtn;
 	}
 	
+	// 信号量
+	g_bufLocks = kmalloc (10 * sizeof (struct semaphore), GFP_KERNEL);
+	if (g_bufLocks == NULL) {
+		return 1;
+	}
+	
+	// 等待队列
+	g_inQueue = kmalloc(10 * sizeof(wait_queue_head_t), GFP_KERNEL);
+  if (g_inQueue == NULL) {
+      return 2;
+  }
 	for (i=0; i<10; i++) {
 		int devno = MKDEV(g_major, i);
+		// 每一个设备对应一个信号量
+		sema_init(&g_bufLocks[i], 1);
+		// 每一个设备对应一个等待队列
+		init_waitqueue_head (&g_inQueue[i]);
+		
 		// 绑定fops 和 设备节点
 		cdev_init (&g_chatDev[i], &g_fops);
 		g_chatDev[i].owner = THIS_MODULE;
@@ -78,7 +98,7 @@ static int chat_init(void)
 		} else {
 			printk ("dev register success!\n");
 			// 其它初始化
-			g_buf = kmalloc (g_num_buf, GFP_KERNEL);
+			g_buf = kmalloc (10 * g_num_buf, GFP_KERNEL);
 			if (g_buf == NULL) {
 				printk ("func:%s, kmalloc failed\n", __FUNCTION__);
 				return -1;
@@ -92,8 +112,6 @@ static int chat_init(void)
 		printk ("func:%s, device_create ok:%s\n", __FUNCTION__, szDevName);
 	}
 	
-	g_bufLocks = kmalloc (sizeof (struct semaphore), GFP_KERNEL);
-	sema_init(g_bufLocks, 1);
 	create_proc_read_entry("pchat", 0 /* default mode */,
         NULL /* parent dir */,
         pchats_read_status_proc,
@@ -117,68 +135,113 @@ static void chat_exit(void)
   }
 	remove_proc_entry("pchat", NULL /* parent dir */);
 	kfree(g_bufLocks);
+	kfree (g_inQueue);
 }
 
 static ssize_t chat_read(struct file *filp, char *buf, size_t len, loff_t *off)
 {
 	int i = 0;
-	struct dev *pDevice = filp->private_data;
+	struct cdev *pDev = filp->private_data;
+	unsigned int bufId = MINOR(pDev->dev);
+	struct semaphore *pSem = &g_bufLocks[bufId];
+	char *pBuf = g_buf + bufId * g_num_buf;
+	int nLen = strlen (pBuf);
+	
 //	if (pDevice) {
 //		printk ("func:%s, device null:%s, ERESTARTSYS:%d\n", __FUNCTION__, (char *)pDevice, ERESTARTSYS);
 //		return -ERESTARTSYS;
 //	}
-	printk ("func:%s, down_interruptible\n", __FUNCTION__);
-	if (down_interruptible(g_bufLocks)) {
-		printk ("func:%s, down_interruptible:ERESTARTSYS\n", __FUNCTION__);
+	// #include <linux/sched.h> 包含current全局变量
+ 	printk ("func:%s, ready down, current pid:%d\n", __FUNCTION__, current->pid);
+	if (down_interruptible(pSem)) {
+		printk ("func:%s, exit down\n", __FUNCTION__);
     return -ERESTARTSYS;
   }
-
- 	int nLen = strlen (g_buf);
- 	if (nLen == 0) {
- 		return -EINTR;
- 	}
+	printk ("func:%s, already down\n", __FUNCTION__);
+	
+	#if 0
+	 	if (nLen == 0) {
+	 		printk ("func:%s, exit EINTR\n", __FUNCTION__);
+			up (pSem);
+			return -EINTR;
+	 	}
+ 	#else
+ 		up (pSem);
+		if (wait_event_interruptible (g_inQueue[bufId], (strlen (pBuf) != 0))) {
+			printk ("func:%s, exit wait_event_interruptible\n", __FUNCTION__);
+			return -ERESTARTSYS;
+		}
+		printk ("func:%s, already wait_event_interruptible\n", __FUNCTION__);
+	#endif // 0
+ 	
+ 	if (down_interruptible(pSem)) {
+		printk ("func:%s, exit down\n", __FUNCTION__);
+    return -ERESTARTSYS;
+  }
+  nLen = strlen (pBuf);
 	for (i=0; i<nLen; i++) {
-		if((g_buf[i]>='a') && (g_buf[i]<='z'))  {
-			g_buf[i] &= 0xdf;
+		if((pBuf[i]>='a') && (pBuf[i]<='z'))  {
+			pBuf[i] &= 0xdf;
 		}
 	}
 	
 	if (buf) {
-		printk ("func:%s, buf:%s, g_buf:%s\n", __FUNCTION__, buf, g_buf);
-		if (copy_to_user (buf, g_buf, len)) {
+		printk ("func:%s, buf:%s, g_buf:%s\n", __FUNCTION__, buf, pBuf);
+		if (copy_to_user (buf, pBuf, nLen)) {
+			printk ("func:%s, exit copy_to_user\n", __FUNCTION__);
+			up (pSem);
 			return -1;
 		}
 	} else {
 		printk ("func:%s, buf:NULL\n", __FUNCTION__);
 	}
 	
-	up (g_bufLocks);
-	memset (g_buf, 0, nLen);
+	printk ("func:%s, ready up\n", __FUNCTION__);
+	up (pSem);
+	printk ("func:%s, already up\n", __FUNCTION__);
+	memset (pBuf, 0, nLen);
 	return nLen;
 }
 
 static ssize_t chat_write(struct file *filp, const char *buf, size_t len, loff_t *off)
 {
-	printk ("func:%s, 2buf:#%s#\n", __FUNCTION__, buf);
+	struct cdev *pDev = filp->private_data;
+	unsigned int bufId = MINOR(pDev->dev);
+	struct semaphore *pSem = &g_bufLocks[bufId];
+	char *pBuf = g_buf + bufId * g_num_buf;
 	
-	memset (g_buf, 0, g_num_buf);
-	if (copy_from_user (g_buf, buf, len)) {
+	printk ("func:%s, buf:#%s#, ready down\n", __FUNCTION__, buf);
+	if (down_interruptible(pSem)) {
+		printk ("func:%s, exit down\n", __FUNCTION__);
+    return -ERESTARTSYS;
+  }
+  printk ("func:%s, already down\n", __FUNCTION__);
+  
+	memset (pBuf, 0, g_num_buf);
+	if (copy_from_user (pBuf, buf, len)) {
+		printk ("func:%s, exit copy_from_user\n", __FUNCTION__);
+		up (pSem);
 		return -1;
 	}
 	
-	up(g_bufLocks);
+	printk ("func:%s, ready up\n", __FUNCTION__);
+	up (pSem);
+	printk ("func:%s, already up\n", __FUNCTION__);
+	
+	wake_up_interruptible(&g_inQueue[bufId]);
 	
 	return strlen (buf);
 }
 
 static int chat_open(struct inode *inode, struct file *filp)
 {
-	printk ("func:%s\n", __FUNCTION__);
 	unsigned int ma = imajor (inode);
 	unsigned int mi = iminor (inode);
+
+	printk ("func:%s\n", __FUNCTION__);
 	printk ("func:%s, major:%d, minor:%d\n", __FUNCTION__, ma, mi);
 	
-	filp->private_data = "helloworld";
+	filp->private_data = &g_chatDev[mi];
 	
 	if ((filp->f_flags & O_ACCMODE) == O_RDWR) {
 		printk ("func:%s, f_flags:O_RDWR\n", __FUNCTION__);
