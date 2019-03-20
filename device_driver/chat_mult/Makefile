@@ -28,6 +28,7 @@ else
    # obj-m := hello.o hellop.o seq.o jit.o jiq.o sleepy.o complete.o \
    #          silly.o faulty.o kdatasize.o kdataalign.o
    obj-m := chat.o
+   #chat-objs := csTapperUtils.o
 endif
 
 

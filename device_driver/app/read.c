@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
+#include "../chat_mult/chat.h"
 
 int main(int argc, char *argv[])
 {
@@ -10,6 +11,9 @@ int main(int argc, char *argv[])
 	if (-1 != fd) {
 		char szBuf[256] = {0};
 		printf ("1 errno:%d, EINTR:%d\n", errno, EINTR);
+		
+		ioctl (fd, CHAT_IOC_HOOK);
+		return 0;
 		
 		for (;;) {
 			int nRtn = 0;
