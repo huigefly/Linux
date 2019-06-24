@@ -41,7 +41,11 @@ int main()
     while (1) {
         char szBuf[BUFSIZ] = {0};
         int nReadLen = Read (cfd, szBuf, sizeof (szBuf));
-        Write (STDOUT_FILENO, szBuf, nReadLen);
+        if (0 == nReadLen) {
+		printf ("client exit, server follow\n");
+		break;
+	}
+	Write (STDOUT_FILENO, szBuf, nReadLen);
 
         for (i=0; i<nReadLen; i++) {
             szBuf[i] = toupper (szBuf[i]);
