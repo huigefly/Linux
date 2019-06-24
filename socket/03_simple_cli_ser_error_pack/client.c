@@ -5,10 +5,36 @@
 #include <sys/socket.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
 #include "libyy_socket/yySocket.h"
+
+int sfd;
+
+void handle_sig()
+{
+  printf ("func line:%d\n", __LINE__);
+  if (-1 != sfd) {
+    Close (sfd);
+    sfd = -1;
+  }
+  exit (0);
+}
+
+void signalQuit (void)
+{
+  struct sigaction act;
+  memset (&act, 0, sizeof (act));
+  act.sa_handler = handle_sig;
+  sigemptyset (&act.sa_mask);
+  act.sa_flags = 0;
+  sigaction (SIGTERM, &act, 0);
+  sigaction (SIGQUIT, &act, 0);
+  sigaction (SIGINT, &act, 0);
+}
 
 int main(int argc, char *argv[])
 {
+    signalQuit();
     char *pszIp = argv[1];
     char szIp[BUFSIZ] = {0};
     memcpy (szIp, pszIp, strlen (pszIp));
@@ -18,7 +44,7 @@ int main(int argc, char *argv[])
     {   
         exit (-1);
     }
-    int sfd = Socket (AF_INET, SOCK_STREAM, 0);
+    sfd = Socket (AF_INET, SOCK_STREAM, 0);
     socklen_t nLen;
     nLen = sizeof (nLen);
     struct sockaddr_in addr;
@@ -35,7 +61,7 @@ int main(int argc, char *argv[])
         //printf ("recv:%s", szBuf);
         Write (STDOUT_FILENO, szBuf, value);
     }
-
+    printf ("func line:%d\n", __LINE__);
     Close (sfd);
 
     return 0;
