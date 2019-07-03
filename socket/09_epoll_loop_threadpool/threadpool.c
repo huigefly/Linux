@@ -16,9 +16,10 @@
 
 typedef struct
 {
-    void *(*function)(void *); /* 函数指针，回调函数 */
-    void *arg;                 /* 上面函数的参数 */
-} threadpool_task_t;           /* 各子线程任务结构体 */
+    //void *(*function)(void *); /* 函数指针，回调函数 */
+    CALL_BACK_T function;       /* 函数指针，回调函数 */
+    void *arg;                  /* 上面函数的参数 */
+} threadpool_task_t;            /* 各子线程任务结构体 */
 
 /* 描述线程池相关信息 */
 struct threadpool_t
@@ -133,7 +134,7 @@ threadpool_t *threadpool_create(int min_thr_num, int max_thr_num, int queue_max_
 }
 
 /* 向线程池中 添加一个任务 */
-int threadpool_add(threadpool_t *pool, void *(*function)(void *arg), void *arg)
+int threadpool_add(threadpool_t *pool, CALL_BACK_T function, void *arg)
 {
     pthread_mutex_lock(&(pool->lock));
 
@@ -155,11 +156,12 @@ int threadpool_add(threadpool_t *pool, void *(*function)(void *arg), void *arg)
     /* 清空 工作线程 调用的回调函数 的参数arg */
     if (pool->task_queue[pool->queue_rear].arg != NULL)
     {
-        printf ("--> line:%d\n", __LINE__);
-        //free(pool->task_queue[pool->queue_rear].arg);printf ("--> line:%d\n", __LINE__);
+        EVENT_T *pevt = pool->task_queue[pool->queue_rear].arg;
+        //printf ("--line--:%d, fd:%d\n", __LINE__, pevt->fd);
+        //free(pool->task_queue[pool->queue_rear].arg);
         pool->task_queue[pool->queue_rear].function = NULL;
         pool->task_queue[pool->queue_rear].arg = NULL;
-        printf ("--> line:%d\n", __LINE__);
+        //printf ("--line--:%d\n", __LINE__);
     }
 
     /*添加任务到任务队列里*/
@@ -232,15 +234,16 @@ void *threadpool_thread(void *threadpool)
         pthread_mutex_unlock(&(pool->lock));
 
         /*执行任务*/
-        printf("func:[%s]<-thread 0x%x start working, arg:%d\n", __FUNCTION__, (unsigned int)pthread_self(), *(int *)task.arg);
+        //printf("func:[%s]<-thread 0x%x start working, arg:\n", __FUNCTION__, (unsigned int)pthread_self());
         pthread_mutex_lock(&(pool->thread_counter)); /*忙状态线程数变量琐*/
         pool->busy_thr_num++;                        /*忙状态线程数+1*/
         pthread_mutex_unlock(&(pool->thread_counter));
-        (*(task.function))(task.arg); /*执行回调函数任务*/
+        task.function(((EVENT_T *)(task.arg))->fd, ((EVENT_T *)(task.arg))->events, task.arg);
+        //(*(task.function))(task.arg); /*执行回调函数任务*/
         //task.function(task.arg);                                              /*执行回调函数任务*/
 
         /*任务结束处理*/
-        printf("func:[%s]<-thread 0x%x end working\n", __FUNCTION__, (unsigned int)pthread_self());
+        //printf("func:[%s]<-thread 0x%x end working\n", __FUNCTION__, (unsigned int)pthread_self());
         pthread_mutex_lock(&(pool->thread_counter));
         pool->busy_thr_num--; /*处理掉一个任务，忙状态数线程数-1*/
         pthread_mutex_unlock(&(pool->thread_counter));
@@ -287,7 +290,7 @@ void *adjust_thread(void *threadpool)
 
             pthread_mutex_unlock(&(pool->lock));
         }
-
+        printf ("adjust thread busy:%d,live:%d,min:%d\n", busy_thr_num, live_thr_num, pool->min_thr_num);
         /* 销毁多余的空闲线程 算法：忙线程X2 小于 存活的线程数 且 存活的线程数 大于 最小线程数时*/
         if ((busy_thr_num * 2) < live_thr_num && live_thr_num > pool->min_thr_num)
         {
@@ -344,7 +347,6 @@ int threadpool_free(threadpool_t *pool)
     if (pool->task_queue)
     {
         free(pool->task_queue);
-        pool->task_queue = NULL;
     }
     if (pool->threads)
     {
@@ -392,8 +394,7 @@ int is_thread_alive(pthread_t tid)
 }
 
 /*测试*/
-
-#if 1
+#if 0
 /* 线程池中的线程，模拟处理业务 */
 void *process(void *arg)
 {
@@ -406,18 +407,18 @@ void *process(void *arg)
 int main(void)
 {
     /*threadpool_t *threadpool_create(int min_thr_num, int max_thr_num, int queue_max_size);*/
-    threadpool_t *thp = threadpool_create(3, 100, 50); /*创建线程池，池里最小3个线程，最大100，队列最大100*/
+    threadpool_t *thp = threadpool_create(3, 100, 900); /*创建线程池，池里最小3个线程，最大100，队列最大100*/
     printf("pool inited\n");
 
     //int *num = (int *)malloc(sizeof(int)*20);
-    int num[100], i;
-    for (i = 0; i < 100; i++)
+    int num[900], i;
+    for (i = 0; i < 900; i++)
     {
         num[i] = i;
         //printf("add task %d\n",i);
         threadpool_add(thp, process, (void *)&num[i]); /* 向线程池中添加任务 */
     }
-    sleep(50); /* 等子线程完成任务 */
+    sleep(100); /* 等子线程完成任务 */
     threadpool_destroy(thp);
 
     return 0;

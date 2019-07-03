@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "SERVER.C": "cpp",
+        "THREADPOOL.C": "cpp"
+    }
+}

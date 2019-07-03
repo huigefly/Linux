@@ -8,32 +8,16 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include "threadpool.h"
 
-#define PORT 6666
-#define MAX_EVENTS 1024
-#define BUF_SIZE 4096 
+#define PORT            6666
+#define MAX_EVENTS      1024
 
-typedef enum
-{
-    ENUM_TREE_INVALID = -1,
-    ENUM_TREE_IN,
-    ENUM_TREE_UNDER,
-    ENUM_TREE_MAX
-} ENUM_TREE_T;
+#define THREADPOOL_MIN  3
+#define THREADPOOL_MAX  100
+#define TASKQUEUE_MAX   100
 
-typedef void (*CALL_BACK_T)(int, int, void *);
-
-typedef struct
-{
-    int fd;                //要监听的文件描述符
-    int events;            //对应的监听事件
-    void *arg;             //泛型参数
-    CALL_BACK_T call_back; //回调函数
-    ENUM_TREE_T status;    //是否在监听:1->在红黑树上(监听), 0->不在(不监听)
-    char buf[BUF_SIZE];
-    int len;
-    long last_active; //记录每次加入红黑树 g_efd 的时间值
-} EVENT_T;
+//typedef void (*CALL_BACK_T)(int, int, void *);
 
 int g_efd;
 EVENT_T g_events[MAX_EVENTS + 1];
@@ -57,7 +41,7 @@ void eventadd(int efd, int events, EVENT_T *pEv)
     int op;
     struct epoll_event evt = {0, {0}};
 
-    evt.events = events|EPOLLET;
+    evt.events = events |EPOLLET;
     evt.data.ptr = pEv;
 
     pEv->events = events;
@@ -106,7 +90,7 @@ void senddata(int fd, int events, void *arg)
 
     if (len > 0)
     {
-        printf("send[fd=%d], [%d]%s\n", fd, len, pEv->buf);
+        //printf("send[fd=%d], [%d]%s\n", fd, len, pEv->buf);
         eventdel(g_efd, pEv);             //从红黑树g_efd中移除
         eventset(pEv, fd, recvdata, pEv); //将该fd的 回调函数改为 recvdata
         eventadd(g_efd, EPOLLIN, pEv);    //从新添加到红黑树上， 设为监听读事件
@@ -237,6 +221,9 @@ void initListenSocket(int efd, short port)
 
 int main()
 {
+    // create thread pool
+    threadpool_t *thp = threadpool_create(THREADPOOL_MIN, THREADPOOL_MAX, TASKQUEUE_MAX); /*创建线程池，池里最小3个线程，最大100，队列最大100*/
+
     // +1: listen fd
     g_efd = epoll_create(MAX_EVENTS + 1);
     if (-1 == g_efd)
@@ -281,16 +268,22 @@ int main()
             EVENT_T *pEv = (EVENT_T *)events[i].data.ptr;
             if ((events[i].events) & EPOLLIN && (pEv->events & EPOLLIN))
             {
-                printf ("callback add epollin\n");
-                pEv->call_back(pEv->fd, EPOLLIN, pEv);
+                //pEv->call_back(pEv->fd, EPOLLIN, pEv);
+                //printf ("threadpool add epollin\n");
+                threadpool_add(thp, pEv->call_back, pEv);
             }
             else if ((events[i].events & EPOLLOUT) && (pEv->events & EPOLLOUT))
             {
-                printf ("callback add epollout");
-                pEv->call_back(pEv->fd, EPOLLOUT, pEv);
+                //pEv->call_back(pEv->fd, EPOLLOUT, pEv);
+                //printf ("threadpool add epollout\n");
+                threadpool_add(thp, pEv->call_back, pEv);
+                //printf ("threadpool add epollout end\n");
             }
         }
     }
+
+    // 销毁线程池
+    threadpool_destroy(thp);
 
     return 0;
 }

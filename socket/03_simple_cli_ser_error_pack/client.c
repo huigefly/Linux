@@ -53,13 +53,21 @@ int main(int argc, char *argv[])
     addr.sin_port = htons (nPort);
     inet_pton (AF_INET,(const char *)szIp, &addr.sin_addr.s_addr);
     Connect (sfd, (struct sockaddr *)&addr, sizeof (addr));
+    int nCount = 1;
     while (1) {
         char szBuf[BUFSIZ] = {0};
-        fgets (szBuf, sizeof (szBuf), stdin);
+        sprintf (szBuf, "%d--count:%d\n", getpid (), nCount++);
+//        fgets (szBuf, sizeof (szBuf), stdin);
         Write (sfd, szBuf, strlen (szBuf));
         int value = Read (sfd, szBuf, sizeof (szBuf));
-        //printf ("recv:%s", szBuf);
+        //printf ("recv:%d\n", value);
+        if (value == 0)
+        {
+            Close (sfd);
+            return 0;
+        }
         Write (STDOUT_FILENO, szBuf, value);
+        sleep (0.5);
     }
     printf ("func line:%d\n", __LINE__);
     Close (sfd);
