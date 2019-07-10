@@ -13,18 +13,28 @@
 int tcp_connect_server(const char* server_ip, int port);
 void cmd_msg_cb(int fd, short events, void* arg);
 void socket_read_cb(int fd, short events, void *arg);
- 
+
+void yy_event_log(int severity, const char *msg)
+{
+    printf ("%s->msg:%s#\n", __FUNCTION__, msg);
+}
+
+void event_warn(const char *fmt, ...);
+
 int main(int argc, char** argv)
 {
     if( argc < 3 ) {
         printf("please input 2 parameter\n");
         return -1;
     }
+    
+    // 设置日志回调函数
+    event_set_log_callback (yy_event_log);
  
     //两个参数依次是服务器端的IP地址、端口号
     int sockfd = tcp_connect_server(argv[1], atoi(argv[2]));
     if( sockfd == -1) {
-        perror("tcp_connect error ");
+        event_warn ("tcp_connect error ");
         return -1;
     }
     printf("connect to server successful\n");
