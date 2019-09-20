@@ -68,11 +68,17 @@ produce(void *arg)
 		put.nval++;
 		Pthread_mutex_unlock(&put.mutex);
 
+		int flag = 0;
 		Pthread_mutex_lock(&nready.mutex);
-		if (nready.nready == 0)
-			Pthread_cond_signal(&nready.cond);
+		if (nready.nready == 0) {
+			//Pthread_cond_signal(&nready.cond);  // question: 触发后，调用wait，而还未解锁，导致异常。
+			flag = 1;
+		}
 		nready.nready++;
 		Pthread_mutex_unlock(&nready.mutex);
+		if (1 == flag) {
+			Pthread_cond_signal(&nready.cond);
+		}
 
 		*((int *) arg) += 1;
 	}

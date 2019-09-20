@@ -49,6 +49,9 @@ produce(void *arg)
 {
 	for ( ; ; ) {
 		Pthread_mutex_lock(&shared.mutex);
+		printf ("produce sleep\n");
+		sleep (1);
+		printf ("produce sleep end\n");
 		if (shared.nput >= nitems) {
 			Pthread_mutex_unlock(&shared.mutex);
 			return(NULL);		/* array is full, we're done */
@@ -57,6 +60,7 @@ produce(void *arg)
 		shared.nput++;
 		shared.nval++;
 		Pthread_mutex_unlock(&shared.mutex);
+		
 		*((int *) arg) += 1;
 	}
 }
@@ -66,11 +70,14 @@ void
 consume_wait(int i)
 {
 	for ( ; ; ) {
+		printf ("consumer wait mutex lock, %d, put:%d\n", i, shared.nput);
 		Pthread_mutex_lock(&shared.mutex);
 		if (i < shared.nput) {
+			printf ("consumer wait mutex unlock, %d, put:%d\n", i, shared.nput);
 			Pthread_mutex_unlock(&shared.mutex);
 			return;			/* an item is ready */
 		}
+		printf ("consumer wait mutex unlock\n");
 		Pthread_mutex_unlock(&shared.mutex);
 	}
 }
