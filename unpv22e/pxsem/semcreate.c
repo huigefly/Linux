@@ -22,9 +22,9 @@ main(int argc, char **argv)
 	}
 	if (optind != argc - 1)
 		err_quit("usage: semcreate [ -e ] [ -i initalvalue ] <name>");
-
+	printf ("name:%s\n", argv[optind]);
 	sem = Sem_open(argv[optind], flags, FILE_MODE, value);
-
+	sleep (5);
 	Sem_close(sem);
 	exit(0);
 }
