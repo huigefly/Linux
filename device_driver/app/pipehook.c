@@ -3,7 +3,11 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include "../chat_mult/chat.h"
+//#include "../chat_mult/chat.h"
+#include <linux/ioctl.h>
+#define CHAT_IOC_MAGIC    'd'
+#define CHAT_IOC_HOOK           _IO(CHAT_IOC_MAGIC, 0)
+#define CHAT_IOC_UNHOOK   _IO(CHAT_IOC_MAGIC, 1)
 
 int main(int argc, char *argv[])
 {
