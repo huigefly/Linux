@@ -4,11 +4,12 @@
 #include <unistd.h>
 #include <list>
 #include <string>
+#include <semaphore.h>
 using namespace std;
 
 #define MAX_BUF_SIZE 100
 list<string> g_list;
-
+// https://blog.csdn.net/naruto_ahu/article/details/8672376
 
 void *proc_producer(void *lparam)
 {

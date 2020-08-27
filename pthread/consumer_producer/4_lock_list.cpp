@@ -9,8 +9,53 @@ using namespace std;
 #define MAX_BUF_SIZE 100
 
 typedef long unsigned int LUINT_T;
-list<string> g_list;
 
+class CAutoLock
+{
+public:
+    CAutoLock(pthread_mutex_t *plock):m_lock(plock){
+        pthread_mutex_lock(m_lock);
+    }
+
+    ~CAutoLock(){
+        pthread_mutex_unlock(m_lock);
+    }
+private:
+    pthread_mutex_t* m_lock;
+};
+
+template<typename T>
+class CList
+{
+public:
+    LUINT_T size(){
+        CAutoLock lock(&m_lock);
+        return m_list.size();
+    }
+
+    void push_back(const T& data){
+        CAutoLock lock(&m_lock);
+        m_list.push_back(data);
+    }
+
+    T front(){
+        CAutoLock lock(&m_lock);
+        if (m_list.size() > 0){
+            T t = m_list.front();
+            m_list.pop_front();
+            return t;
+        }
+        return T();
+    }
+
+    CList():m_lock(PTHREAD_MUTEX_INITIALIZER){
+    }
+private:
+    list<T> m_list;
+    pthread_mutex_t m_lock;
+};
+
+CList<string> g_list;
 
 void *proc_producer(void *lparam)
 {

@@ -7,10 +7,8 @@
 using namespace std;
 
 #define MAX_BUF_SIZE 100
-
-typedef long unsigned int LUINT_T;
 list<string> g_list;
-
+pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void *proc_producer(void *lparam)
 {
@@ -18,6 +16,7 @@ void *proc_producer(void *lparam)
     unsigned int tid =pthread_self();
     while (1) {
         // wait list not full
+        pthread_mutex_lock(&g_lock);
         if (g_list.size() == MAX_BUF_SIZE) {
             while (1) {
                 if (g_list.size() < MAX_BUF_SIZE) {
@@ -26,13 +25,17 @@ void *proc_producer(void *lparam)
                 sleep(1);
             }          
         }
+        pthread_mutex_unlock(&g_lock);
+
         char szBuf[64] = {0};
         sprintf(szBuf, "producer_[%u]_[%d]", tid, i++);
 
         // push data
+        pthread_mutex_lock(&g_lock);
         if (g_list.size() < MAX_BUF_SIZE) {
             g_list.push_back(szBuf); 
         }
+        pthread_mutex_unlock(&g_lock);
 
         printf("proc_producer tid:%u, buf:%s, list size:%lu\n", tid, szBuf, g_list.size());
         sleep(1);
@@ -51,13 +54,12 @@ void *proc_consumer(void *lparam)
                 sleep(1);
             }
         }
-        
+
         // get data
-        string sBuf = g_list.front();
-        if (sBuf.size() > 0)
-            printf(" proc_consumer get:%s\n", sBuf.c_str());
+        printf(" proc_consumer get:%s\n", g_list.front().c_str());
+        g_list.pop_front();
         printf(" proc_consumer list size:%lu\n", g_list.size());
-        usleep(1000 * 1);
+        usleep(1000 * 500);
     }
 }
 
@@ -71,10 +73,8 @@ int main()
         }
     }
 
-    for (i=0; i<10; i++){
-        if (-1 == pthread_create(&tid_consumer, NULL, proc_consumer, NULL)){
-            return -1;
-        }
+    if (-1 == pthread_create(&tid_consumer, NULL, proc_consumer, NULL)){
+        return -1;
     }
 
     sleep (520 * 1314);
