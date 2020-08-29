@@ -4,12 +4,15 @@
 #include <unistd.h>
 #include <list>
 #include <string>
+#include <semaphore.h>
 using namespace std;
 
 #define MAX_BUF_SIZE 100
 
-typedef long unsigned int LUINT_T;
 list<string> g_list;
+pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
+sem_t g_semEmpty;   // 有多少个空槽位可以存数据
+sem_t g_semFull;    // 已经放了多少个数据
 
 
 void *proc_producer(void *lparam)
@@ -17,23 +20,13 @@ void *proc_producer(void *lparam)
     int i = 0;
     unsigned int tid =pthread_self();
     while (1) {
-        // wait list not full
-        if (g_list.size() == MAX_BUF_SIZE) {
-            while (1) {
-                if (g_list.size() < MAX_BUF_SIZE) {
-                    break;
-                }
-                sleep(1);
-            }          
-        }
         char szBuf[64] = {0};
         sprintf(szBuf, "producer_[%u]_[%d]", tid, i++);
-
-        // push data
-        if (g_list.size() < MAX_BUF_SIZE) {
-            g_list.push_back(szBuf); 
-        }
-
+        sem_wait(&g_semEmpty);
+        pthread_mutex_lock(&g_lock);
+        g_list.push_back(szBuf);
+        pthread_mutex_unlock(&g_lock);
+        sem_post(&g_semFull); 
         printf("proc_producer tid:%u, buf:%s, list size:%lu\n", tid, szBuf, g_list.size());
         sleep(1);
     }
@@ -42,20 +35,12 @@ void *proc_producer(void *lparam)
 void *proc_consumer(void *lparam)
 {
     while (1) {
-        // empty sleep
-        if (g_list.size() == 0) {
-            while (1) {
-                if (g_list.size() > 0) {
-                    break;
-                }
-                sleep(1);
-            }
-        }
-        
-        // get data
-        string sBuf = g_list.front();
-        if (sBuf.size() > 0)
-            printf(" proc_consumer get:%s\n", sBuf.c_str());
+        sem_wait(&g_semFull);
+        printf(" proc_consumer get:%s\n", g_list.front().c_str());
+        pthread_mutex_lock(&g_lock);
+        g_list.pop_front();
+        pthread_mutex_unlock(&g_lock);
+        sem_post(&g_semEmpty);
         printf(" proc_consumer list size:%lu\n", g_list.size());
         usleep(1000 * 1);
     }
@@ -63,6 +48,9 @@ void *proc_consumer(void *lparam)
 
 int main()
 {
+    sem_init(&g_semEmpty, 0, 100);
+    sem_init(&g_semFull, 0, 0);
+
     pthread_t tid_consumer, tid_producer;
     int i = 0;
     for (i=0; i<10; i++){
