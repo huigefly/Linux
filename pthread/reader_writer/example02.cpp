@@ -12,15 +12,37 @@ string g_buf;
 
 list<string> g_list;
 pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t g_lock_read = PTHREAD_MUTEX_INITIALIZER;
+int g_read_count = 0;
 
 void *proc_reader(void *lparam)
 {
     int i = 0;
     unsigned int tid =pthread_self();
     while (1) {
-        pthread_mutex_lock(&g_lock);
+        printf("reader g_lock_read lock\n");
+        pthread_mutex_lock(&g_lock_read);
+        g_read_count++;
+        if (1 == g_read_count){
+            printf("reader lock\n");
+            pthread_mutex_lock(&g_lock);
+        }
+        printf("reader g_lock_read unlock\n");
+        pthread_mutex_unlock(&g_lock_read);
+        
         printf ("[%u] reader:%s\n", tid, g_buf.c_str());
-        pthread_mutex_unlock(&g_lock);
+
+        printf("reader g_lock_read lock 2\n");
+        pthread_mutex_lock(&g_lock_read);
+        g_read_count--;
+        // if (0 == g_read_count){
+         if (1 == g_read_count){    
+            printf("reader unlock\n");
+            pthread_mutex_unlock(&g_lock);
+        }
+        printf("reader g_lock_read unlock 2\n");
+        pthread_mutex_unlock(&g_lock_read);
+
         sleep(5);
     }
 }
@@ -33,7 +55,7 @@ void *proc_writer(void *lparam)
         g_buf = to_string(tid) + " xxxxxxxxxxxxxxxxxxx";
         printf ("[%u] write:%s\n", tid, g_buf.c_str());
         pthread_mutex_unlock(&g_lock);
-        sleep(5);
+        sleep(10);
     }
 }
 
